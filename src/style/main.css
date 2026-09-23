@@ -12,7 +12,7 @@
   -webkit-app-region: drag;
 }
 
-/* 主题变量：默认深色，html[data-theme="light"] 切换到浅色。
+/* 主题变量：默认浅色，html[data-theme="dark"] 切换到深色。
    取值与官方 dsw alias token（design-platform.css）逐项一致 */
 :root {
   --accent: #4176e6;                 /* state-business-primary (deepseek-500) */
@@ -55,7 +55,7 @@
   --color-nav-active: rgba(255, 255, 255, 0.12);
 }
 
-html[data-theme="light"] {
+html:not([data-theme="dark"]) {
   --color-canvas: #ffffff;             /* bg-base (bluish-00) */
   --color-panel: #f9fafb;              /* specific-sidebar-fill (bluish-50) */
   --color-panel-2: #f5f6f7;            /* selector / module-platform (bluish-60) */
@@ -117,4 +117,3 @@ html[data-theme="light"] {
     font-size: 14px;
   }
 }
-

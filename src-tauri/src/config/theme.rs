@@ -6,7 +6,7 @@ use tauri::{AppHandle, Emitter};
 
 use super::runtime::get_dsh_data_path;
 
-/// dsh 主题偏好（对应 `$DSH_HOME/settings.yaml` 的 `ui-theme.preference`）
+/// dsh 主题偏好
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DshTheme {
@@ -15,21 +15,42 @@ pub enum DshTheme {
     System,
 }
 
-const DEFAULT_THEME: DshTheme = DshTheme::Dark;
+const DEFAULT_THEME: DshTheme = DshTheme::Light;
 
 static LAST_EMITTED: OnceLock<Mutex<Option<DshTheme>>> = OnceLock::new();
 
-/// 读取 dsh 主题偏好；settings.yaml 缺失或解析失败时回退为深色
+/// 读取 dsh 主题偏好；优先读取新版 web 档案配置，兼容旧版 settings.yaml
 pub fn get_dsh_theme(app_handle: &AppHandle) -> DshTheme {
-    let settings_path = get_dsh_data_path(app_handle).join("settings.yaml");
-    let content = match fs::read_to_string(&settings_path) {
-        Ok(content) => content,
-        Err(err) => {
-            log::debug!("failed to read dsh settings.yaml: {}", err);
-            return DEFAULT_THEME;
+    let home = get_dsh_data_path(app_handle);
+    let patch_path = home.join("profiles/web/cordis.patch.yml");
+    if let Ok(content) = fs::read_to_string(&patch_path) {
+        if let Some(theme) = parse_patch_theme_preference(&content) {
+            return theme;
         }
-    };
-    parse_theme_preference(&content).unwrap_or(DEFAULT_THEME)
+    }
+    let settings_path = home.join("settings.yaml");
+    fs::read_to_string(&settings_path)
+        .ok()
+        .and_then(|content| parse_theme_preference(&content))
+        .unwrap_or(DEFAULT_THEME)
+}
+
+/// 从 0.1.7 起的 web 档案补丁中读取主题配置。
+fn parse_patch_theme_preference(content: &str) -> Option<DshTheme> {
+    let entries: Vec<serde_yaml::Value> = serde_yaml::from_str(content).ok()?;
+    let theme_entry = entries
+        .iter()
+        .find(|entry| entry.get("id").and_then(serde_yaml::Value::as_str) == Some("ui-theme"))?;
+    parse_preference(theme_entry.get("config")?.get("preference")?.as_str()?)
+}
+
+fn parse_preference(value: &str) -> Option<DshTheme> {
+    match value {
+        "light" => Some(DshTheme::Light),
+        "dark" => Some(DshTheme::Dark),
+        "system" => Some(DshTheme::System),
+        _ => None,
+    }
 }
 
 /// 从 settings.yaml 文本中提取 `ui-theme.preference`（light/dark/system）
@@ -50,12 +71,7 @@ fn parse_theme_preference(content: &str) -> Option<DshTheme> {
         }
         if !trimmed.is_empty() && !trimmed.starts_with('#') {
             if let Some(value) = trimmed.strip_prefix("preference:") {
-                return match value.trim() {
-                    "light" => Some(DshTheme::Light),
-                    "dark" => Some(DshTheme::Dark),
-                    "system" => Some(DshTheme::System),
-                    _ => None,
-                };
+                return parse_preference(value.trim());
             }
         }
     }
@@ -104,4 +120,32 @@ pub fn check_and_emit_theme(app_handle: &AppHandle) {
     let _ = app_handle.emit("dsh-theme-updated", &theme);
     #[cfg(target_os = "macos")]
     apply_window_theme(app_handle, theme);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_theme_from_web_profile_patch() {
+        let patch = "- id: unrelated\n  config:\n    preference: dark\n- id: ui-theme\n  name: '@deepseek-ai/dsh-client-ui-theme'\n  config:\n    preference: light\n";
+        assert_eq!(parse_patch_theme_preference(patch), Some(DshTheme::Light));
+        assert_eq!(
+            parse_patch_theme_preference(&patch.replace("preference: light", "preference: system")),
+            Some(DshTheme::System)
+        );
+        assert_eq!(
+            parse_patch_theme_preference(&patch.replace("preference: light", "preference: dark")),
+            Some(DshTheme::Dark)
+        );
+    }
+
+    #[test]
+    fn keeps_legacy_theme_fallback() {
+        assert_eq!(
+            parse_theme_preference("other:\n  preference: dark\nui-theme:\n  preference: light\n"),
+            Some(DshTheme::Light)
+        );
+        assert_eq!(DEFAULT_THEME, DshTheme::Light);
+    }
 }
