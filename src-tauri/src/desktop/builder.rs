@@ -456,7 +456,12 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     // 由 Tauri 自动居中；见 config::window_state）。
     crate::config::restore_main_window(app, &webview_window);
     #[cfg(windows)]
-    webview_window.show()?;
+    {
+        // `.icon()` 只设 ICON_SMALL（ICO 第一帧 32×32）。任务栏读 ICON_BIG，
+        // 显示前从本进程同一份 ICO 补 256×256，与安装程序一致。
+        apply_windows_taskbar_icon(&webview_window);
+        webview_window.show()?;
+    }
 
     #[cfg(windows)]
     {
@@ -477,6 +482,49 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     }
 
     Ok(webview_window)
+}
+
+/// tauri-build 写入 EXE 的应用图标资源 ID（IDI_APPLICATION）。
+#[cfg(windows)]
+const WINDOWS_APP_ICON_RESOURCE_ID: u16 = 32512;
+
+/// 只补任务栏用的 ICON_BIG。`.icon()` 已设 ICON_SMALL，不必再动。
+#[cfg(windows)]
+fn apply_windows_taskbar_icon(window: &tauri::WebviewWindow<Wry>) {
+    use windows_sys::Win32::Foundation::{LPARAM, WPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, LoadImageW, SendMessageW, GWLP_HINSTANCE, ICON_BIG, IMAGE_ICON,
+        WM_SETICON,
+    };
+
+    let hwnd = match window.hwnd() {
+        Ok(handle) => handle.0,
+        Err(error) => {
+            log::warn!("[window] hwnd unavailable, skip high-res taskbar icon: {error}");
+            return;
+        }
+    };
+
+    unsafe {
+        let hinstance = GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
+        if hinstance == 0 {
+            log::warn!("[window] HINSTANCE unavailable, skip high-res taskbar icon");
+            return;
+        }
+        let icon = LoadImageW(
+            hinstance as _,
+            WINDOWS_APP_ICON_RESOURCE_ID as usize as windows_sys::core::PCWSTR,
+            IMAGE_ICON,
+            256,
+            256,
+            0,
+        );
+        if icon.is_null() {
+            log::warn!("[window] failed to load 256px taskbar icon from EXE resource");
+            return;
+        }
+        SendMessageW(hwnd, WM_SETICON, ICON_BIG as WPARAM, icon as LPARAM);
+    }
 }
 
 #[cfg(all(test, windows))]
@@ -509,6 +557,28 @@ mod security_tests {
         let source = include_str!("builder.rs");
         let smart_screen = ["ms", "SmartScreen", "Protection"].concat();
         assert!(!source.contains(smart_screen.as_str()));
+    }
+}
+
+#[cfg(test)]
+mod icon_tests {
+    #[test]
+    fn icon_ico_includes_256_frame_for_shell() {
+        let data = include_bytes!("../../icons/icon.ico");
+        let count = u16::from_le_bytes([data[4], data[5]]) as usize;
+        let has_256 = (0..count).any(|i| {
+            let offset = 6 + i * 16;
+            data[offset] == 0 && data[offset + 1] == 0
+        });
+        assert!(has_256, "installer/taskbar shell needs a 256x256 ICO frame");
+    }
+
+    #[test]
+    fn windows_taskbar_icon_sets_icon_big_from_exe_resource() {
+        let source = include_str!("builder.rs");
+        assert!(source.contains("apply_windows_taskbar_icon"));
+        assert!(source.contains("ICON_BIG"));
+        assert!(source.contains("32512"));
     }
 }
 
