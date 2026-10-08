@@ -595,6 +595,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::set_active_profile,
         crate::bridge::remove_profile,
         crate::bridge::get_cores,
+        crate::bridge::get_latest_core_version,
         crate::bridge::proxy_health_check,
         crate::bridge::get_runtime_info,
         crate::bridge::runtime_ready,

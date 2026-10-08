@@ -210,7 +210,7 @@ export function Navbar({ iframeRef }: NavbarProps) {
         {
           'hidden': IS_MACOS && isFullscreen,
           'pl-20 pr-1.5': IS_MACOS && !isFullscreen,
-          'px-1.5': !IS_MACOS || isFullscreen,
+          'pl-1.5': !IS_MACOS || isFullscreen,
         },
       )}
     >
@@ -324,38 +324,40 @@ export function Navbar({ iframeRef }: NavbarProps) {
       />
 
       <If cond={!IS_MACOS}>
-        <Button
-          className="rounded-lg size-7"
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={t('nav.minimize')}
-          onPress={() => { handleWindowAction('minimize') }}
-        >
-          <Minus />
-        </Button>
+        <div className="flex shrink-0 self-stretch">
+          <Button
+            className="h-full w-10 min-w-0 shrink-0 rounded-none"
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={t('nav.minimize')}
+            onPress={() => { handleWindowAction('minimize') }}
+          >
+            <Minus />
+          </Button>
 
-        <Button
-          className="rounded-lg size-7"
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={t('nav.maximize')}
-          onPress={() => { handleWindowAction('maximize') }}
-        >
-          <Square style={{ width: 14, height: 14 }} />
-        </Button>
+          <Button
+            className="h-full w-10 min-w-0 shrink-0 rounded-none"
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={t('nav.maximize')}
+            onPress={() => { handleWindowAction('maximize') }}
+          >
+            <Square style={{ width: 14, height: 14 }} />
+          </Button>
 
-        <Button
-          className="rounded-lg size-7 transition-colors enabled:hover:bg-danger/16 enabled:hover:text-danger"
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={t('nav.background')}
-          onPress={() => { handleWindowAction('background') }}
-        >
-          <Xmark />
-        </Button>
+          <Button
+            className="h-full w-10 min-w-0 shrink-0 rounded-none transition-colors enabled:hover:bg-danger/16 enabled:hover:text-danger"
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={t('nav.background')}
+            onPress={() => { handleWindowAction('background') }}
+          >
+            <Xmark />
+          </Button>
+        </div>
       </If>
     </div>
   )

@@ -5,3 +5,8 @@ use tauri::AppHandle;
 pub async fn get_cores(app_handle: AppHandle) -> Vec<core::HarnessCore> {
     core::list(&app_handle).await
 }
+
+#[tauri::command]
+pub async fn get_latest_core_version() -> Option<String> {
+    core::latest_version().await
+}

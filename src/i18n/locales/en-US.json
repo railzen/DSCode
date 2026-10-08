@@ -115,6 +115,7 @@
   "core.remove_confirm_desc": "Uninstall {{version}}? The engine copy will be removed from this device (other copies are unaffected).",
   "core.app": "Bundled",
   "core.latest": "Latest",
+  "core.latest_version": "Latest version: {{version}}",
   "core.current": "Current",
   "core.update_local": "Update Local Core",
   "core.updated_toast": "Local core updated: {{version}}",

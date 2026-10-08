@@ -115,6 +115,7 @@
   "core.remove_confirm_desc": "确定卸载 {{version}} 吗？将移除本机的该引擎副本（其余副本不受影响）。",
   "core.app": "预打包",
   "core.latest": "最新版",
+  "core.latest_version": "最新 Latest 版本：{{version}}",
   "core.current": "当前",
   "core.update_local": "更新本地核心",
   "core.updated_toast": "本地核心已更新：{{version}}",

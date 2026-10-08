@@ -41,7 +41,7 @@ export function DesktopAboutDialog(props: DesktopAboutDialogProps) {
                   {about?.powered_by ?? 'DSCode'}
                 </div>
                 <Description className="text-xs">
-                  {t('about.powered_by', { name: about?.powered_by ?? 'Hairy & DeepSeek' })}
+                  {t('about.powered_by', { name: about?.powered_by ?? 'DeepSeek Harness' })}
                 </Description>
               </div>
               <div className="space-y-1.5 border-t border-line/40 pt-3">
