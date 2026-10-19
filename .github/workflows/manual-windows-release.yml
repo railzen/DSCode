@@ -126,12 +126,13 @@ jobs:
 
           const cargoPath = 'src-tauri/Cargo.toml'
           const cargo = fs.readFileSync(cargoPath, 'utf8')
+          const cargoVersionPattern = /^(\[package\][\s\S]*?^version\s*=\s*)"[^"]+"/m
+          if (!cargoVersionPattern.test(cargo))
+            throw new Error('Cargo package version was not found')
           const updatedCargo = cargo.replace(
-            /^(\[package\][\s\S]*?^version\s*=\s*)"[^"]+"/m,
+            cargoVersionPattern,
             `$1"${version}"`,
           )
-          if (updatedCargo === cargo)
-            throw new Error('Cargo package version was not updated')
           fs.writeFileSync(cargoPath, updatedCargo)
           '@
 
