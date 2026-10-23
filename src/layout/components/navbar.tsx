@@ -15,7 +15,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
-import { cn } from 'tailwind-variants'
+import { cn, tv } from 'tailwind-variants'
 import { useStore } from 'valtio-define'
 import { ConfigDialog } from '@/components/config-dialog'
 import { DesktopAboutDialog } from '@/components/desktop-about-dialog'
@@ -54,6 +54,19 @@ function detectMacOS() {
 }
 
 const IS_MACOS = detectMacOS()
+
+/** 导航栏按钮统一占满整条栏高、直角，左右两侧观感一致。 */
+const navButton = tv({
+  base: 'h-full min-w-0 shrink-0 rounded-none',
+  variants: {
+    kind: {
+      icon: 'w-10',
+      text: 'px-3 text-xs',
+      close: 'w-10 transition-colors enabled:hover:bg-danger/16 enabled:hover:text-danger',
+    },
+  },
+  defaultVariants: { kind: 'icon' },
+})
 
 /** macOS 原生全屏时收起整条壳层导航栏。 */
 function useMacOSFullscreen() {
@@ -206,57 +219,58 @@ export function Navbar({ iframeRef }: NavbarProps) {
   return (
     <div
       className={cn(
-        'relative flex h-11 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
+        'relative flex h-11 w-full flex-none select-none items-center border-b border-line bg-panel',
         {
           'hidden': IS_MACOS && isFullscreen,
           'pl-20 pr-1.5': IS_MACOS && !isFullscreen,
-          'pl-1.5': !IS_MACOS || isFullscreen,
         },
       )}
     >
       <If cond={iframeRef != null}>
-        <Button
-          className="rounded-lg size-7"
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={t(sidebarCollapsed ? 'nav.sidebar_expand' : 'nav.sidebar_collapse')}
-          onPress={() => { sendNav('sidebar:toggle') }}
-        >
-          <If
-            cond={sidebarCollapsed}
-            then={<LayoutSideContentLeft />}
-            else={<LayoutSideContent />}
-          />
-        </Button>
+        <div className="flex shrink-0 self-stretch">
+          <Button
+            className={navButton()}
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={t(sidebarCollapsed ? 'nav.sidebar_expand' : 'nav.sidebar_collapse')}
+            onPress={() => { sendNav('sidebar:toggle') }}
+          >
+            <If
+              cond={sidebarCollapsed}
+              then={<LayoutSideContentLeft />}
+              else={<LayoutSideContent />}
+            />
+          </Button>
 
-        <Button
-          className="rounded-lg size-7"
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={t('nav.back')}
-          isDisabled={!canGoBack}
-          onPress={() => { sendNav('page:prev') }}
-        >
-          <ArrowLeft />
-        </Button>
-        <Button
-          className="rounded-lg size-7"
-          isIconOnly
-          size="sm"
-          variant="ghost"
-          aria-label={t('nav.forward')}
-          isDisabled={!canGoForward}
-          onPress={() => { sendNav('page:next') }}
-        >
-          <ArrowRight />
-        </Button>
+          <Button
+            className={navButton()}
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={t('nav.back')}
+            isDisabled={!canGoBack}
+            onPress={() => { sendNav('page:prev') }}
+          >
+            <ArrowLeft />
+          </Button>
+          <Button
+            className={navButton()}
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={t('nav.forward')}
+            isDisabled={!canGoForward}
+            onPress={() => { sendNav('page:next') }}
+          >
+            <ArrowRight />
+          </Button>
+        </div>
       </If>
       <If cond={!IS_MACOS}>
-        <div className="ml-1">
+        <div className="flex shrink-0 self-stretch">
           <Button
-            className="rounded-lg h-6 text-xs px-1.5"
+            className={navButton({ kind: 'text' })}
             size="sm"
             variant="ghost"
             onPress={handleOpenConfig}
@@ -265,7 +279,7 @@ export function Navbar({ iframeRef }: NavbarProps) {
           </Button>
           <Dropdown>
             <Button
-              className="rounded-lg h-6 text-xs px-1.5"
+              className={navButton({ kind: 'text' })}
               size="sm"
               variant="ghost"
               aria-label={t('app.expand_sidebar')}
@@ -326,7 +340,7 @@ export function Navbar({ iframeRef }: NavbarProps) {
       <If cond={!IS_MACOS}>
         <div className="flex shrink-0 self-stretch">
           <Button
-            className="h-full w-10 min-w-0 shrink-0 rounded-none"
+            className={navButton()}
             isIconOnly
             size="sm"
             variant="ghost"
@@ -337,7 +351,7 @@ export function Navbar({ iframeRef }: NavbarProps) {
           </Button>
 
           <Button
-            className="h-full w-10 min-w-0 shrink-0 rounded-none"
+            className={navButton()}
             isIconOnly
             size="sm"
             variant="ghost"
@@ -348,7 +362,7 @@ export function Navbar({ iframeRef }: NavbarProps) {
           </Button>
 
           <Button
-            className="h-full w-10 min-w-0 shrink-0 rounded-none transition-colors enabled:hover:bg-danger/16 enabled:hover:text-danger"
+            className={navButton({ kind: 'close' })}
             isIconOnly
             size="sm"
             variant="ghost"
