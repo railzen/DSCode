@@ -457,9 +457,9 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     crate::config::restore_main_window(app, &webview_window);
     #[cfg(windows)]
     {
-        // `.icon()` 只设 ICON_SMALL（ICO 第一帧 32×32）。任务栏读 ICON_BIG，
-        // 显示前从本进程同一份 ICO 补 256×256，与安装程序一致。
-        apply_windows_taskbar_icon(&webview_window);
+        // `.icon()` 只设 ICON_SMALL（ICO 第一帧 32×32 的 RGBA），任务栏还要 ICON_BIG。
+        // 恢复几何之后再设，保证按窗口最终所在显示器的 DPI 取尺寸。
+        apply_windows_taskbar_icon(&webview_window.as_ref().window());
         webview_window.show()?;
     }
 
@@ -488,42 +488,83 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
 #[cfg(windows)]
 const WINDOWS_APP_ICON_RESOURCE_ID: u16 = 32512;
 
-/// 只补任务栏用的 ICON_BIG。`.icon()` 已设 ICON_SMALL，不必再动。
+/// 上一轮加载的大/小图标句柄，换新图标后由我们释放（只有主窗口会设置）。
 #[cfg(windows)]
-fn apply_windows_taskbar_icon(window: &tauri::WebviewWindow<Wry>) {
+static WINDOWS_TASKBAR_ICONS: [std::sync::atomic::AtomicPtr<std::ffi::c_void>; 2] = [
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut()),
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut()),
+];
+
+/// 按当前 DPI 从 EXE 图标资源设置窗口的大/小图标，并同步到窗口类。
+///
+/// - 尺寸取系统标准值（32/16 × 缩放），由 LoadImageW 挑最接近的 ICO 层；
+///   固定给 256px 时 Win10 任务栏缩到 24～32px 的质量很差，而 tao 的
+///   ICON_SMALL 只是 32px RGBA，被放大到 125%/150% 时直接发糊。
+/// - 虚拟机里 Shell 发 WM_GETICON 常因主线程忙于 WebView2 初始化而超时，
+///   随后退回类图标；tao 注册的类图标为空，任务栏就只剩模糊小图。
+/// - DPI 变化（RDP 重连、增强会话、改分辨率）后任务栏会重新取图标，
+///   因此 ScaleFactorChanged 时需要再调用一次。
+#[cfg(windows)]
+pub fn apply_windows_taskbar_icon(window: &tauri::Window<Wry>) {
+    use std::sync::atomic::Ordering;
     use windows_sys::Win32::Foundation::{LPARAM, WPARAM};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, LoadImageW, SendMessageW, GWLP_HINSTANCE, ICON_BIG, IMAGE_ICON,
-        WM_SETICON,
+        DestroyIcon, GetWindowLongPtrW, LoadImageW, SendMessageW, SetClassLongPtrW,
+        GCLP_HICON, GCLP_HICONSM, GWLP_HINSTANCE, ICON_BIG, ICON_SMALL, IMAGE_ICON, WM_SETICON,
     };
 
     let hwnd = match window.hwnd() {
         Ok(handle) => handle.0,
         Err(error) => {
-            log::warn!("[window] hwnd unavailable, skip high-res taskbar icon: {error}");
+            log::warn!("[window] hwnd unavailable, skip taskbar icon: {error}");
             return;
         }
     };
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let big_size = (32.0 * scale).round() as i32;
+    let small_size = (16.0 * scale).round() as i32;
 
     unsafe {
         let hinstance = GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
         if hinstance == 0 {
-            log::warn!("[window] HINSTANCE unavailable, skip high-res taskbar icon");
+            log::warn!("[window] HINSTANCE unavailable, skip taskbar icon");
             return;
         }
-        let icon = LoadImageW(
-            hinstance as _,
-            WINDOWS_APP_ICON_RESOURCE_ID as usize as windows_sys::core::PCWSTR,
-            IMAGE_ICON,
-            256,
-            256,
-            0,
-        );
-        if icon.is_null() {
-            log::warn!("[window] failed to load 256px taskbar icon from EXE resource");
+        let load = |size: i32| {
+            LoadImageW(
+                hinstance as _,
+                WINDOWS_APP_ICON_RESOURCE_ID as usize as windows_sys::core::PCWSTR,
+                IMAGE_ICON,
+                size,
+                size,
+                0,
+            )
+        };
+        let big = load(big_size);
+        let small = load(small_size);
+        if big.is_null() || small.is_null() {
+            log::warn!("[window] failed to load {big_size}/{small_size}px icons from EXE resource");
+            for icon in [big, small] {
+                if !icon.is_null() {
+                    DestroyIcon(icon);
+                }
+            }
             return;
         }
-        SendMessageW(hwnd, WM_SETICON, ICON_BIG as WPARAM, icon as LPARAM);
+
+        SendMessageW(hwnd, WM_SETICON, ICON_BIG as WPARAM, big as LPARAM);
+        SendMessageW(hwnd, WM_SETICON, ICON_SMALL as WPARAM, small as LPARAM);
+        SetClassLongPtrW(hwnd, GCLP_HICON, big as isize);
+        SetClassLongPtrW(hwnd, GCLP_HICONSM, small as isize);
+        log::info!("[window] taskbar icons applied: {big_size}/{small_size}px (scale {scale})");
+
+        // 窗口与类都已指向新句柄，释放上一轮自己加载的；tao 的初始图标归它自己管。
+        for (slot, icon) in WINDOWS_TASKBAR_ICONS.iter().zip([big, small]) {
+            let previous = slot.swap(icon, Ordering::SeqCst);
+            if !previous.is_null() {
+                DestroyIcon(previous);
+            }
+        }
     }
 }
 
@@ -676,6 +717,11 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
                 crate::config::save_geometry(window);
                 #[cfg(target_os = "macos")]
                 sync_macos_fullscreen_menu(window);
+            }
+            // DPI 变化后任务栏会重新取图标，按新尺寸重设，避免沿用旧尺寸缩放发糊
+            #[cfg(windows)]
+            tauri::WindowEvent::ScaleFactorChanged { .. } => {
+                apply_windows_taskbar_icon(window);
             }
             _ => {}
         });
