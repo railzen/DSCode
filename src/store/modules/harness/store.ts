@@ -16,7 +16,9 @@ import { queryClient } from '@/config/client'
 import { containsInotifyLimitError, pickErrorLines } from '@/utils/log'
 import { pollReadiness } from '@/utils/readiness'
 
-const MAX_RETRIES = 8
+const READINESS_INTERVAL_MS = 500
+/** 缩短探测间隔后仍保留原来 7 次间隔共 14 秒的等待窗口，避免慢启动提前超时。 */
+const MAX_RETRIES = 29
 const IFRAME_LOAD_TIMEOUT = 20000
 /** 启动失败时从服务日志尾部挑选的原始行上限（ANSI 清洗后按行截断） */
 const LOG_TAIL_MAX_BYTES = 16 * 1024
@@ -193,9 +195,11 @@ export const harness = defineStore({
             stopColdStartWatchdog()
             return
           }
-          if (!bootIpcReady && ticks >= 2)
+          // 探测间隔缩短后，IPC 重试仍按原来约 1.5 秒的节奏触发。
+          if (!bootIpcReady && ticks >= 4 && (ticks - 1) % 3 === 0)
             void harness.boot()
-          if (ticks >= 8)
+          // 首次立即探测，后续 21 次间隔保留原来约 10.5 秒的兜底窗口。
+          if (ticks >= 22)
             stopColdStartWatchdog()
         }
         finally {
@@ -205,7 +209,7 @@ export const harness = defineStore({
       void tickColdStartWatchdog()
       coldStartWatchdog = setInterval(() => {
         void tickColdStartWatchdog()
-      }, 1500)
+      }, READINESS_INTERVAL_MS)
     },
 
     /**
@@ -325,7 +329,7 @@ export const harness = defineStore({
     async recoverReadiness(token: number) {
       const result = await pollReadiness({
         probe: checkHealthViaProxy,
-        intervalMs: 2000,
+        intervalMs: READINESS_INTERVAL_MS,
         shouldContinue: () => token === bootToken && this.serviceRunning && !this.serviceHealthy,
       })
       if (token !== bootToken)
@@ -365,7 +369,7 @@ export const harness = defineStore({
 
         const result = await pollReadiness({
           probe: checkHealthViaProxy,
-          intervalMs: 2000,
+          intervalMs: READINESS_INTERVAL_MS,
           maxAttempts: MAX_RETRIES,
           shouldContinue: () => token === undefined || token === bootToken,
         })
