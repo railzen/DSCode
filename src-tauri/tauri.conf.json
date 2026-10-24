@@ -32,6 +32,8 @@
       "resources/bundle/bundle.json",
       "resources/bundle/bin/**/*",
       "resources/bundle/dsh.tar",
+      "resources/bundle/dsh-*.files",
+      "resources/bundle/extract-dsh.ps1",
       "resources/bundle/git/**/*",
       "resources/bundle/node/**/*",
       "resources/bundle/powershell/**/*"

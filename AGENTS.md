@@ -22,7 +22,7 @@ DSCode desktop (Tauri 2 + React 19), embeds the Harness UI served at `http://127
   - `bridge/cmd.rs`: Tauri commands (register in `lib.rs` `generate_handler!`)
   - `config/`: constants, paths (`runtime.rs`), settings (`setting.rs`), i18n & theme
   - `scripts/prepare-runtime.ts`: build-time offline runtime preparation
-  - `scripts/pack-runtime.ts`: packs DSH as one archive and deduplicates nested dependencies for faster NSIS builds/installs
+  - `scripts/pack-runtime.ts`: packs DSH as one archive, deduplicates nested dependencies, and prepares parallel extraction for faster NSIS builds/installs
   - `service/workflow/`: process lifecycle (Windows no-window: `win_spawn.rs`)
   - `service/cli/`: `dsh`/`pnpm` shims + PATH registration (`mod.rs`/`shim.rs`/`path.rs`/`core.rs`)
   - `service/scheduler/` + `task/`: health check & polling

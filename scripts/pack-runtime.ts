@@ -19,6 +19,30 @@ function run(args: string[]) {
     throw new Error(`tar.exe failed: ${result.error || result.status}`)
 }
 
+function archiveEntries() {
+  const result = spawnSync('tar.exe', ['-tf', archive], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 })
+  if (result.error || result.status !== 0)
+    throw new Error(`tar.exe list failed: ${result.error || result.stderr || result.status}`)
+  const entries = result.stdout.split(/\r?\n/).filter(Boolean)
+  if (!entries.length)
+    throw new Error('DSH archive is empty')
+  return entries
+}
+
+function writeExtractionPlan() {
+  const entries = archiveEntries()
+  const workers = Math.min(4, entries.length)
+  const lists = Array.from({ length: workers }, () => [] as string[])
+  entries.forEach((entry, index) => lists[index % workers].push(entry))
+  for (const name of readdirSync(bundle).filter(name => /^dsh-\d+\.files$/.test(name)))
+    rmSync(join(bundle, name), { force: true })
+  lists.forEach((entries, index) => {
+    writeFileSync(join(bundle, `dsh-${index}.files`), entries.join('\n').concat('\n'))
+  })
+  cpSync(join(root, 'scripts/runtime/extract-dsh.ps1'), join(bundle, 'extract-dsh.ps1'))
+  console.log(`Prepared ${workers}-way parallel DSH extraction`)
+}
+
 function relativePath(path: string) {
   return path.slice(dsh.length + 1).split(sep).join('/')
 }
@@ -79,6 +103,7 @@ try {
 
   rmSync(archive, { force: true })
   renameSync(temporary, archive)
+  writeExtractionPlan()
   console.log('DSH runtime archive prepared')
 }
 finally {

@@ -708,13 +708,15 @@ Section Install
 
   ; DSCode: extract thousands of DSH files as one archive instead of making
   ; NSIS create every small file individually. Windows 10/11 provides bsdtar.
-  nsExec::ExecToStack '"$SYSDIR\tar.exe" -xf "$INSTDIR\resources\bundle\dsh.tar" -C "$INSTDIR\resources\bundle"'
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\bundle\extract-dsh.ps1" -Root "$INSTDIR\resources\bundle"'
   Pop $0
   Pop $1
   ${If} $0 <> 0
     DetailPrint $1
     RMDir /r "$INSTDIR\resources\bundle\dsh"
     Delete "$INSTDIR\resources\bundle\dsh.tar"
+    Delete "$INSTDIR\resources\bundle\dsh-*.files"
+    Delete "$INSTDIR\resources\bundle\extract-dsh.ps1"
     MessageBox MB_ICONSTOP "$(bundledRuntimeExtractFailed)"
     Abort
   ${EndIf}
@@ -732,6 +734,8 @@ Section Install
       Abort
     ${EndIf}
   dsh_junctions_done:
+  Delete "$INSTDIR\resources\bundle\dsh-*.files"
+  Delete "$INSTDIR\resources\bundle\extract-dsh.ps1"
   Delete "$INSTDIR\resources\bundle\dsh\install-junctions.ps1"
   Delete "$INSTDIR\resources\bundle\dsh.tar"
 
