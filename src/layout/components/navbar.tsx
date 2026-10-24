@@ -12,7 +12,7 @@ import { Button, Chip, Description, Dropdown, Label } from '@heroui/react'
 import { useOverlay } from '@overlastic/react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
 import { cn, tv } from 'tailwind-variants'
@@ -173,8 +173,26 @@ export function Navbar({ iframeRef }: NavbarProps) {
       void copyRunLogs()
   }
 
+  /** 「配置」触发按钮：弹窗关闭后用于释放其焦点（见 releaseTriggerFocus）。 */
+  const configButtonRef = useRef<HTMLButtonElement>(null)
+
   function handleOpenConfig() {
-    void openConfigDialog().catch(() => {})
+    void openConfigDialog()
+      .catch(() => {})
+      .then(releaseTriggerFocus)
+  }
+
+  /**
+   * 弹窗关闭后把焦点从「配置」触发按钮上移开，避免残留键盘焦点环（蓝色描边）：
+   * overlastic 关闭时要先等退场动画（默认 300ms）才卸载弹窗，随后 react-aria 的
+   * FocusScope 会在下一帧把焦点还原给触发按钮；若此时处于键盘模态（如用 Esc
+   * 关闭弹窗），按钮就会显示键盘焦点环。等焦点还原落地后再主动 blur。
+   */
+  function releaseTriggerFocus() {
+    setTimeout(() => {
+      if (document.activeElement === configButtonRef.current)
+        configButtonRef.current?.blur()
+    }, 400)
   }
 
   function handleOpenAbout() {
@@ -270,6 +288,7 @@ export function Navbar({ iframeRef }: NavbarProps) {
       <If cond={!IS_MACOS}>
         <div className="flex shrink-0 self-stretch">
           <Button
+            ref={configButtonRef}
             className={navButton({ kind: 'text' })}
             size="sm"
             variant="ghost"
