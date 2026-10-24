@@ -3,7 +3,8 @@
 ;
 ; Keep it in sync with upstream tauri-bundler upgrades, but preserve the
 ; DSCode customizations (marked with "DSCode:").
-; The single customization so far is in PageReinstall: a cross-version UPGRADE is
+; DSCode customizations include the in-place PageReinstall upgrade flow and
+; single-archive DSH installation. The cross-version UPGRADE behavior is
 ; applied in place — the redundant "uninstall / don't uninstall" prompt is skipped
 ; entirely (no uninstall, keep user data). The standalone "add/remove programs"
 ; uninstall path is untouched.
@@ -493,6 +494,8 @@ FunctionEnd
 {{/each}}
 LangString bundledRuntimeLocked ${LANG_ENGLISH} "Please close DSCode and its command-line tools, then run the installer again."
 LangString bundledRuntimeLocked ${LANG_SIMPCHINESE} "请关闭 DSCode 及其命令行工具，然后重新运行安装包。"
+LangString bundledRuntimeExtractFailed ${LANG_ENGLISH} "DSH could not be extracted. Please run the installer again."
+LangString bundledRuntimeExtractFailed ${LANG_SIMPCHINESE} "DSH 运行时解压失败，请重新运行安装包。"
 !insertmacro MUI_RESERVEFILE_LANGDLL
 {{#each language_files}}
   !include "{{this}}"
@@ -703,6 +706,35 @@ Section Install
     File /a "/oname={{this.[1]}}" "{{no-escape @key}}"
   {{/each}}
 
+  ; DSCode: extract thousands of DSH files as one archive instead of making
+  ; NSIS create every small file individually. Windows 10/11 provides bsdtar.
+  nsExec::ExecToStack '"$SYSDIR\tar.exe" -xf "$INSTDIR\resources\bundle\dsh.tar" -C "$INSTDIR\resources\bundle"'
+  Pop $0
+  Pop $1
+  ${If} $0 <> 0
+    DetailPrint $1
+    RMDir /r "$INSTDIR\resources\bundle\dsh"
+    Delete "$INSTDIR\resources\bundle\dsh.tar"
+    MessageBox MB_ICONSTOP "$(bundledRuntimeExtractFailed)"
+    Abort
+  ${EndIf}
+  ; Identical nested dependencies are stored once and reconnected as NTFS
+  ; junctions. This removes tens of thousands of duplicate file extractions.
+  IfFileExists "$INSTDIR\resources\bundle\dsh\runtime-junctions.json" 0 dsh_junctions_done
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\resources\bundle\dsh\install-junctions.ps1" -Root "$INSTDIR\resources\bundle\dsh"'
+    Pop $0
+    Pop $1
+    ${If} $0 <> 0
+      DetailPrint $1
+      RMDir /r "$INSTDIR\resources\bundle\dsh"
+      Delete "$INSTDIR\resources\bundle\dsh.tar"
+      MessageBox MB_ICONSTOP "$(bundledRuntimeExtractFailed)"
+      Abort
+    ${EndIf}
+  dsh_junctions_done:
+  Delete "$INSTDIR\resources\bundle\dsh\install-junctions.ps1"
+  Delete "$INSTDIR\resources\bundle\dsh.tar"
+
   ; Copy external binaries
   {{#each binaries}}
     File /a "/oname={{this}}" "{{no-escape @key}}"
@@ -838,6 +870,10 @@ Section Uninstall
   {{#each resources}}
     Delete "$INSTDIR\\{{this.[1]}}"
   {{/each}}
+
+  ; DSCode: DSH is extracted at install time and therefore has no per-file
+  ; uninstaller manifest entries. The whole bundle is application-owned.
+  RMDir /r "$INSTDIR\resources\bundle"
 
   ; Delete external binaries
   {{#each binaries}}

@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build && pnpm pack:runtime",
     "frontendDist": "../dist"
   },
   "app": {
@@ -29,7 +29,12 @@
       "icons/icon.png"
     ],
     "resources": [
-      "resources/bundle/**/*"
+      "resources/bundle/bundle.json",
+      "resources/bundle/bin/**/*",
+      "resources/bundle/dsh.tar",
+      "resources/bundle/git/**/*",
+      "resources/bundle/node/**/*",
+      "resources/bundle/powershell/**/*"
     ],
     "licenseFile": "licenses/INSTALLER-LICENSE.txt",
     "category": "DeveloperTool",

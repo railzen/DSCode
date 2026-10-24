@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "icons": "tauri icon public/favicon.svg && tsx scripts/rebuild-macos-icon.ts",
     "prepare:runtime": "tsx scripts/prepare-runtime.ts",
-    "test:offline": "tsx scripts/test-offline-runtime.ts"
+    "test:offline": "tsx scripts/test-offline-runtime.ts",
+    "pack:runtime": "tsx scripts/pack-runtime.ts"
   },
   "dependencies": {
     "@gravity-ui/icons": "^2.21.0",

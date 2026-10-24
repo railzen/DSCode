@@ -33,6 +33,8 @@ cd ..
 pnpm tauri build --bundles nsis
 ```
 
+`pnpm tauri build` 会先通过 `pack:runtime` 将 DSH 合并为单个归档，并对完全重复的嵌套依赖去重（NTFS 使用目录联接，其他文件系统保留副本），减少 NSIS 打包与安装的小文件开销。
+
 资源版本与 SHA-256 固定在 `scripts/runtime/assets.json`，DSH 依赖树固定在 `scripts/runtime/package-lock.json`。更新运行时版本后必须重新构建完整安装包。`test:offline` 使用全新数据目录、隔离 PATH，并阻止 Node 的非本机连接；发布前还应在断网、未预装开发工具/WebView2 的干净 Windows 虚拟机验证安装、启动、升级和卸载。
 
 ## 相关项目与 License
