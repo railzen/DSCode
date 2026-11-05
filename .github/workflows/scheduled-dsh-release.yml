@@ -1,0 +1,81 @@
+name: Scheduled DSH Release
+
+on:
+  schedule:
+    # 每天北京时间 10:00 检查一次（cron 使用 UTC）
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 不能与被调用的 manual-windows-release 使用同名 group，否则会互相等待死锁
+concurrency:
+  group: scheduled-dsh-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Compare latest DSH with last release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      dsh_version: ${{ steps.compare.outputs.dsh_version }}
+      should_release: ${{ steps.compare.outputs.should_release }}
+
+    steps:
+      - name: Resolve latest and last packaged DSH versions
+        id: compare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+          latest="$(npm view '@deepseek-ai/dsh@latest' version)"
+          if [[ ! "$latest" =~ $semver ]]; then
+            echo "::error::npm returned an invalid DSH version: $latest"
+            exit 1
+          fi
+
+          # manual-windows-release 在 Release 说明里写入 `@deepseek-ai/dsh@<version>`，
+          # 取最近一个非草稿 Release 中记录的版本作为上次打包版本。
+          packaged="$(gh api "repos/$GH_REPO/releases?per_page=50" --jq '
+            [ .[]
+              | select(.draft | not)
+              | (.body // "")
+              | capture("@deepseek-ai/dsh@(?<v>[0-9A-Za-z.+-]+)")
+              | .v
+            ] | first // ""
+          ')"
+
+          if [ "$latest" = "$packaged" ]; then
+            should_release=false
+            echo "DSH $latest is already packaged; nothing to do."
+          else
+            should_release=true
+            echo "DSH changed: last packaged '${packaged:-none}', latest '$latest'."
+          fi
+
+          echo "dsh_version=$latest" >> "$GITHUB_OUTPUT"
+          echo "should_release=$should_release" >> "$GITHUB_OUTPUT"
+
+          {
+            echo '## DSH version check'
+            echo ''
+            echo "- Latest on npm: \`@deepseek-ai/dsh@$latest\`"
+            echo "- Last packaged: \`${packaged:-none}\`"
+            echo "- New release: \`$should_release\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Release with latest DSH
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/manual-windows-release.yml
+    with:
+      dsh_version: ${{ needs.check.outputs.dsh_version }}

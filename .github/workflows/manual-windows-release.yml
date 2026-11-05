@@ -8,6 +8,13 @@ on:
         required: true
         default: latest
         type: string
+  # 供 scheduled-dsh-release.yml 在检测到 DSH 新版本时复用同一套打包发布流程
+  workflow_call:
+    inputs:
+      dsh_version:
+        description: DSH version or npm dist-tag to bundle
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -26,7 +33,8 @@ jobs:
       - name: Checkout latest default branch
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          # schedule 事件的 payload 不含 repository，回退到默认分支对应的 github.ref
+          ref: ${{ github.event.repository.default_branch || github.ref }}
           fetch-depth: 0
 
       - name: Install pnpm
