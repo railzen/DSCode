@@ -1,6 +1,6 @@
 import { useWatch } from '@hairy/react-lib'
 import { useOverlay } from '@overlastic/react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore } from 'valtio-define'
 import { DesktopUpdateDialog } from '@/components/desktop-update-dialog'
@@ -14,15 +14,25 @@ const POLL_INTERVAL = 10 * 60_000
  * 桌面端「发现新版本」提示：后台低频轮询（见 POLL_INTERVAL，Rust 侧不缓存、
  * 每次实时查询），发现新版本时在右下角弹 toast。
  * 用户关闭后记住该版本，本次会话不再弹出；新版本出现仍会再次提示。
+ * 应用启动时首次检查发现的版本只更新菜单指示，不弹 toast。
  */
 export function DesktopUpdater() {
   const { t } = useTranslation()
   const { updateInfo, dismissedTag, downloading } = useStore(store.desktopUpdater)
   const openUpdateDialog = useOverlay(DesktopUpdateDialog)
+  const startupCheckedRef = useRef(false)
+  const startupTagRef = useRef<string | undefined>(undefined)
 
   // 低频静默检查新版本（实时查询，无本地缓存）；后台失败静默，不打扰用户
   useEffect(() => {
-    void store.desktopUpdater.check().catch(() => {})
+    void store.desktopUpdater.check()
+      .then((info) => {
+        startupTagRef.current = info?.tag
+      })
+      .catch(() => {})
+      .finally(() => {
+        startupCheckedRef.current = true
+      })
     const timer = setInterval(() => {
       void store.desktopUpdater.check().catch(() => {})
     }, POLL_INTERVAL)
@@ -37,6 +47,9 @@ export function DesktopUpdater() {
       return
     // 用户已关闭过该版本提示 → 不再弹出
     if (updateInfo.tag === dismissedTag)
+      return
+    // 启动检查尚未结束或发现的就是启动时的版本 → 不弹出
+    if (!startupCheckedRef.current || updateInfo.tag === startupTagRef.current)
       return
     toast(t('update.available', { tag: updateInfo.tag }), {
       actionProps: {
