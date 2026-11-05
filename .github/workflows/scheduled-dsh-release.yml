@@ -2,8 +2,8 @@ name: Scheduled DSH Release
 
 on:
   schedule:
-    # 每天北京时间 10:00 检查一次（cron 使用 UTC）
-    - cron: '0 2 * * *'
+    # 每天北京时间 07:17 检查一次（cron 使用 UTC，避开整点高峰以减少调度延迟）
+    - cron: '17 23 * * *'
   workflow_dispatch:
 
 permissions:
